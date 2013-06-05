@@ -1,0 +1,196 @@
+/*******************************************************************
+ * File: FleschKincaid.cpp
+ *
+ * A program that approximates the Flesch-Kincaid grade level of a
+ * piece of text.
+ *
+ *
+ *g++ FleschKincaid.cpp StanfordCPPLib/tokenscanner.cpp StanfordCPPLib/error.cpp StanfordCPPLib/strlib.cpp StanfordCPPLib/simpio.cpp -o a
+ */
+#include <iostream>
+#include <fstream>
+#include <cctype>
+#include <iomanip>
+#include "StanfordCPPLib/simpio.h"
+#include "StanfordCPPLib/tokenscanner.h"
+using namespace std;
+
+/* usage: isValidType(filename, "txt");
+ */
+bool hasValidType(string filename, string type);
+bool isWord(const string &str);
+double calculateGradeLevel(unsigned words, unsigned sentences, unsigned syllables);
+unsigned countSyllables(const string &str);
+unsigned countSyllablesDEBUGVERSION(const string &str);
+
+/* TEST cases
+   word    token   # of syllable(s) 
+   ------  -----   ----------------
+   peach     1      1 (consecutive vowel is not counted)
+   me        1      1 (ending 'e' is not counted, but all words have at least one syllable)
+   deduce    1      2 (ending 'e')
+   it's      1      1 (apostrophe is included in a word)
+   A-5       1      1 (- is included in a word)
+*/
+
+int main() {
+	/* TODO: Fill this in! */
+
+  string filename, token;
+  ifstream input;
+  unsigned words, sentences, syllables;
+  words = sentences = syllables = 0;
+  
+  /** Ask user for filename, if filename is invalid, ask again.
+   * modified from promptUserForFile() in filelib.h*/
+  while (true) {
+    string prompt = "Enter filename to be scanned: ";
+    cout << prompt;
+    getline(cin, filename);
+    input.open(filename.c_str());
+    if (!input.fail()) break;
+    input.clear();
+    cout << "Unable to open that file.  Try again." << endl;
+    if (prompt == "") prompt = "Output file: ";
+  }
+  
+  /* set up tokenscanner */ 
+  TokenScanner scanner(input);
+  scanner.ignoreWhitespace();
+  scanner.ignoreComments();
+  scanner.addWordCharacters("'"); /* "He's", "I'm" and etc. are tokens */
+  scanner.addWordCharacters("-"); /* "A-1" is a token */
+  int counter = 0;
+  
+  /* scanning using the suggested pattern */
+  while (scanner.hasMoreTokens()) {
+    //cout << counter++ << ": " << scanner.getPosition() << ", "  << scanner.nextToken() << endl;
+    token = scanner.nextToken();
+
+    if (isWord(token)) {
+      words++;
+      syllables += countSyllables(token);
+    }
+    /* inaccurate counting for number of sentences */
+    if (token == "." || token == "?" || token == "!") sentences++; 
+  }
+  
+  /* prevent division by zero */
+  if (sentences == 0) {
+    sentences = 1;
+  }
+  /* assumed an empty file has one word */
+  if (words == 0) {
+    words = 1; 
+  }
+  
+  cout << "Number of words: " << words << ", Number of sentences: " << sentences
+       << ", Number of syllables: " << syllables << endl; 
+  cout << "The grade level of this reading is " << fixed << setprecision(2)
+       << calculateGradeLevel(words, sentences, syllables) << endl;
+       
+       
+/* //TESTING codes
+  cout << "Empty?: " << scanner.nextToken() << endl;
+  scanner.saveToken("abc");
+  cout << "abc?: " << scanner.nextToken() << endl;
+*/
+  input.close();
+  return 0;
+}
+unsigned countSyllables(const string &str) {
+  unsigned sum = 0;
+  char aeiou[10] = {'a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U'}; 
+  bool flag = false;
+  
+  /* processing each character */
+  for (int i = 0; i < str.size(); i++) {
+    flag = false;
+    for (int j = 0; j < 10; j++) {
+      if (str[i] == aeiou[j]) {
+        flag = true; /* flagged for checking the consecutive vowel such as peach */
+        if (!(i == str.size() - 1 && str[i] == 'e')) {
+          sum++;
+          break;
+        }
+      } 
+    } /* end for j */
+    
+    /* if current character is a vowel, skips the next character.
+     * because if it's either a vowel or a consonant, it cannot be not counted.*/
+    if (flag == true) i++;
+  } /* end for i */
+  
+  /* ALL words should have at least one syllable */
+  if (sum == 0) sum = 1;
+  return sum;
+}
+double calculateGradeLevel(unsigned words, unsigned sentences, unsigned syllables) {
+  double c0 = -15.59;
+  double c1 = 0.39;
+  double c2 = 11.8;
+  return c0 + c1 * (double(words) / sentences) + c2 * (double(syllables) / words);
+}
+ 
+bool isWord(const string &str) {
+  int flag = true;
+  if (!isalpha(str[0])) flag = false;  
+  return flag;
+}
+
+/* bad code written before using promtUserForInput() */
+bool hasValidType(string filename, string type) {
+  bool flag = false, loopFlag = true;
+  int i;
+  for(i = filename.size() - 1; i >= 0 && loopFlag; i--) {
+    if (filename.at(i) == '.') {
+      loopFlag = false;
+      flag = true;
+    }
+  } /* end for */
+  if (filename.substr(i, type.size()) != type) {
+    flag = false;
+  }
+  return flag;
+}
+
+unsigned countSyllablesDEBUGVERSION(const string &str) {
+  unsigned sum = 0;
+  char aeiou[10] = {'a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U'}; 
+  bool flag = false;
+
+  for (int i = 0; i < str.size(); i++) {
+    flag = false;
+    cout << "str[" << i << "]: " << str[i];
+    for (int j = 0; j < 10; j++) {
+      if (str[i] == aeiou[j]) {
+        cout << ", is vowel";
+        flag = true; /* flagged for checking the consecutive vowel such as peach */
+        cout << ", flagged";
+        if (!(i == str.size() - 1 && str[i] == 'e')) {
+          cout << ", is not ending 'e'";
+          sum++;
+          cout << ", sum incremented";
+          break;
+        }
+      } 
+    } /* end for j */
+    
+    /* if current character is a vowel, skips the next character.
+     * because if it's either a vowel or a consonant, it cannot be not counted.
+     */
+    if (flag == true) {
+      i++;
+      cout << ", voweled: i++";
+    }
+    cout << ", DEBUGGING DONE." << endl;
+  } /* end for i */
+  
+  /* ALL words should have at least one syllable */
+  if (sum == 0) {
+    cout << "no syllable: sum = 1" << endl;
+    sum = 1;
+  }
+  
+  return sum;
+}
